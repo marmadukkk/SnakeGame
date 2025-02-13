@@ -128,6 +128,10 @@ function wrapSegment(segment) {
  */
 function checkAppleCollision(segment, newHead) {
     if (segment.x === applePosition[0] && segment.y === applePosition[1]) {
+
+        const newScore = Number(document.getElementById('score').innerHTML) + 1;
+        document.getElementById('score').innerHTML = newScore;
+
         spawnApple();
         // Extend snake: add an extra segment at the beginning of the snakeBody.
         // New segment is placed behind the current head.
