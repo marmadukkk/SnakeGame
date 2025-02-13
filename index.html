@@ -1,18 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Neon Snake</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-    <center><label id="scoreDescription">Score:</label></center>
-    <center><label id="score">0</label></center>
-    <canvas id="gP">HTML 5 не поддерживется</canvas>
-</body>
-<script src="script.js"></script>
+    <header class="game-header">
+        <h1>🕹️ neon snake</h1>
+        <div id="score-display">🍎 0</div>
+    </header>
+    
+    <div class="game-container">
+        <canvas id="gP"></canvas>
+        <div class="game-border"></div>
+    </div>
 
+    <div class="game-over-popup">
+        <div class="game-over-content">
+            <h2>game over!</h2>
+            <p>final score: <span id="final-score">0</span></p>
+            <button onclick="resetGame()">play again</button>
+        </div>
+    </div>
+
+    <div class="controls-info">
+        ← ↑ → ↓ to control • space to pause
+    </div>
+    <audio id="apple-sound" src="https://assets.mixkit.co/active_storage/sfx/2219/2219-preview.mp3"></audio>
+    <audio id="death-sound" src="https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3"></audio>
+    <script src="script.js"></script>
+</body>
 </html>
