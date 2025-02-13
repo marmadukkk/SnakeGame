@@ -31,6 +31,13 @@ const audio = {
   ),
 };
 
+function setCanvasSize() {
+  const headerHeight = document.querySelector(".game-header").offsetHeight;
+  const controlsHeight = document.querySelector(".controls-info").offsetHeight;
+  canvas.width = Math.min(window.innerWidth, 800);
+  canvas.height = window.innerHeight - headerHeight - controlsHeight - 50;
+}
+
 // game objects
 let snakeBody = [];
 let currentDirection = DIRECTION_RIGHT;
@@ -264,6 +271,8 @@ function handleKeyboardEvents(event) {
 
 // initialize game systems
 function initializeGame() {
+  window.addEventListener("resize", setCanvasSize);
+  setCanvasSize();
   resetSnake();
   spawnApple();
   setInterval(renderFrame, 1000 / FPS);
