@@ -1,234 +1,274 @@
 "use strict";
 
-// Game settings constants
-const GRID_SIZE = 25;           // Grid cell size (width/height)
-const FPS = 20;                 // Game frames per second
-const CANVAS_ID = "gP";         // Canvas element id
+// ============================================
+// game configuration and state variables
+// ============================================
+let currentScore = 0;
+let isPaused = false;
+let isDead = false;
+const scoreElement = document.getElementById("score-display");
+const COLLISION_SAFE_SEGMENTS = 4;
 
-// Movement direction constants
+// core game constants
+const GRID_SIZE = 25;
+const FPS = 15;
+const CANVAS_ID = "gP";
+const SCORE_PER_APPLE = 100;
+
+// movement directions
 const DIRECTION_RIGHT = 1;
 const DIRECTION_DOWN = 2;
 const DIRECTION_LEFT = 3;
 const DIRECTION_UP = 4;
 
-// Global variables for game state
-let snakeBody = null; // Snake segments array; each segment is an object {x, y}
-let currentDirection = DIRECTION_RIGHT;  // Current movement direction (on game start snake will go to right by default)
-let applePosition = null; // Apple position stored as an array: [x, y]
+// audio assets
+const audio = {
+  apple: new Audio(
+    "https://assets.mixkit.co/active_storage/sfx/2219/2219-preview.mp3"
+  ),
+  death: new Audio(
+    "https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3"
+  ),
+};
 
-// Retrieve the canvas element and its drawing context
+// game objects
+let snakeBody = [];
+let currentDirection = DIRECTION_RIGHT;
+let applePosition = null;
+
+// canvas setup
 const canvas = document.getElementById(CANVAS_ID);
 const ctx = canvas.getContext("2d");
-
-// Initialize canvas dimensions to full window dimensions
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
+// ============================================
+// core game logic
+// ============================================
 
-/*
- * Returns a random number that is rounded to the nearest multiple of GRID_SIZE.
- * The random value will be between min (inclusive) and max (exclusive).
- */
+// initialize audio system
+[audio.apple, audio.death].forEach((sound) => {
+  sound.preload = "auto";
+  sound.volume = 0.3;
+});
+
+// generate grid-aligned position
 function getRandomGridValue(min, max) {
-    const randomValue = Math.floor(Math.random() * (max - min) + min);
-    return Math.round(randomValue / GRID_SIZE) * GRID_SIZE;
+  return (
+    Math.floor((Math.random() * (max - min)) / GRID_SIZE) * GRID_SIZE + min
+  );
 }
 
-/*
- * Sets a new apple position using random grid coordinates within the window dimensions.
- */
+// spawn new apple at valid position
 function spawnApple() {
-    applePosition = [
-        getRandomGridValue(0, window.innerWidth),
-        getRandomGridValue(0, window.innerHeight)
-    ];
+  applePosition = [
+    getRandomGridValue(0, canvas.width - GRID_SIZE),
+    getRandomGridValue(0, canvas.height - GRID_SIZE),
+  ];
 }
 
-/*
- * Resets the snake body to its initial state (a single segment at position {x: 0, y: 0}) 
- * and sets the default direction.
- */
+// reset snake to initial state
 function resetSnake() {
-    snakeBody = [{ x: 0, y: 0 }];
-    currentDirection = DIRECTION_RIGHT;
+  snakeBody = [
+    { x: GRID_SIZE * 4, y: GRID_SIZE * 4 },
+    { x: GRID_SIZE * 3, y: GRID_SIZE * 4 },
+    { x: GRID_SIZE * 2, y: GRID_SIZE * 4 },
+  ];
+  currentDirection = DIRECTION_RIGHT;
+  currentScore = 0;
+  scoreElement.textContent = `🍎 ${currentScore}`;
 }
 
-/*
- * Updates the snake's head based on the current movement direction.
- */
+// calculate new head position
 function computeNewHead() {
-    const currentHead = snakeBody[snakeBody.length - 1];
-    // Create a copy for new head coordinates
-    let newHead = {
-        x: currentHead.x,
-        y: currentHead.y
-    };
+  const head = snakeBody[snakeBody.length - 1];
+  const newHead = { x: head.x, y: head.y };
 
-    switch (currentDirection) {
-        case DIRECTION_RIGHT:
-            newHead.x += GRID_SIZE;
-            newHead.y = Math.round(newHead.y / GRID_SIZE) * GRID_SIZE;
-            break;
-        case DIRECTION_DOWN:
-            newHead.y += GRID_SIZE;
-            newHead.x = Math.round(newHead.x / GRID_SIZE) * GRID_SIZE;
-            break;
-        case DIRECTION_LEFT:
-            newHead.x -= GRID_SIZE;
-            newHead.y = Math.round(newHead.y / GRID_SIZE) * GRID_SIZE;
-            break;
-        case DIRECTION_UP:
-            newHead.y -= GRID_SIZE;
-            newHead.x = Math.round(newHead.x / GRID_SIZE) * GRID_SIZE;
-            break;
-        default:
-            break;
-    }
-
-    return newHead;
+  switch (currentDirection) {
+    case DIRECTION_RIGHT:
+      newHead.x += GRID_SIZE;
+      break;
+    case DIRECTION_DOWN:
+      newHead.y += GRID_SIZE;
+      break;
+    case DIRECTION_LEFT:
+      newHead.x -= GRID_SIZE;
+      break;
+    case DIRECTION_UP:
+      newHead.y -= GRID_SIZE;
+      break;
+  }
+  return newHead;
 }
 
-/*
- * Checks if the snake head has collided with any other segment.
- * If collision is detected, the snake is reset.(lose)
- */
-function checkSelfCollision() {
-    const head = snakeBody[snakeBody.length - 1];
-    // Loop over all segments except the head
-    for (let index = 0; index < snakeBody.length - 1; index++) {
-        if (snakeBody[index].x === head.x && snakeBody[index].y === head.y) {
-            // Reset the snake upon collision
-            resetSnake();
-            break;
-        }
-    }
+// check boundary collision
+function checkBoundaryCollision(pos) {
+  return (
+    pos.x < 0 || pos.x >= canvas.width || pos.y < 0 || pos.y >= canvas.height
+  );
 }
 
-/*
- * Wraps the segment coordinates around the canvas if they go off-screen.
- */
-function wrapSegment(segment) {
-    // Horizontal wrapping for right or left
-    if (segment.x >= canvas.width) {
-        segment.x = 0;
-    } else if (segment.x < 0) {
-        segment.x = Math.round(canvas.width / GRID_SIZE) * GRID_SIZE;
-    }
-    // Vertical wrapping for down or up
-    if (segment.y >= canvas.height) {
-        segment.y = 0;
-    } else if (segment.y < 0) {
-        segment.y = Math.round(canvas.height / GRID_SIZE) * GRID_SIZE;
-    }
+// ============================================
+// death and reset system
+// ============================================
+
+// handle game over state
+function handleDeath() {
+  isDead = true;
+  audio.death.currentTime = 0;
+  audio.death.play();
+  document.querySelector(".game-over-popup").style.display = "flex";
+  document.getElementById("final-score").textContent = currentScore;
 }
 
-/*
- * Checks if the given segment is at the same position as the apple.
- * If the apple is eaten, spawn a new apple and extend the snake.
- */
-function checkAppleCollision(segment, newHead) {
-    if (segment.x === applePosition[0] && segment.y === applePosition[1]) {
-
-        const newScore = Number(document.getElementById('score').innerHTML) + 1;
-        document.getElementById('score').innerHTML = newScore;
-
-        spawnApple();
-        // Extend snake: add an extra segment at the beginning of the snakeBody.
-        // New segment is placed behind the current head.
-        snakeBody.unshift({
-            x: newHead.x - GRID_SIZE,
-            y: newHead.y
-        });
-    }
+// reset game to initial state
+function resetGame() {
+  document.querySelector(".game-over-popup").style.display = "none";
+  isDead = false;
+  isPaused = false;
+  resetSnake();
+  spawnApple();
 }
 
-/*
- * Clears the canvas and draws the apple and snake for the current game state.
- */
-function renderFrame() {
-    // If apple is too close to the edge, reposition it.
-    if (applePosition[0] + GRID_SIZE >= canvas.width || applePosition[1] + GRID_SIZE >= canvas.height) {
-        spawnApple();
-    }
+// ============================================
+// rendering and game loop
+// ============================================
 
-    // Clear the entire canvas before redrawing.
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+// update snake position and check collisions
+function updateSnakePosition() {
+  const newHead = computeNewHead();
 
-    // Draw the apple in red.
-    ctx.fillStyle = "red";
-    ctx.fillRect(applePosition[0], applePosition[1], GRID_SIZE, GRID_SIZE);
+  if (checkBoundaryCollision(newHead)) {
+    handleDeath();
+    return;
+  }
 
-    // Set snake drawing color (black)
-    ctx.fillStyle = "#000";
+  const hasSelfCollision = snakeBody
+    .slice(0, -COLLISION_SAFE_SEGMENTS)
+    .some((segment) => segment.x === newHead.x && segment.y === newHead.y);
 
-    // Check for self-collision.
-    checkSelfCollision();
+  if (hasSelfCollision) {
+    handleDeath();
+    return;
+  }
 
-    // Compute new head position and add it to the snake.
-    const newHead = computeNewHead();
-    snakeBody.push(newHead);
-    // Remove the tail segment so that the snake moves forward.
-    snakeBody.shift();
+  snakeBody.push(newHead);
+  snakeBody.shift();
 
-    // Draw each segment of the snake and check apple collisions and wrapping.
-    snakeBody.forEach(segment => {
-        wrapSegment(segment);
-        checkAppleCollision(segment, newHead);
-        ctx.fillRect(segment.x, segment.y, GRID_SIZE, GRID_SIZE);
-    });
-}
-
-/*
- * Handles keydown events to change the snake's movement direction.
- * Prevents reverse movements (e.g., cannot go left if moving right) and default browser actions.
- */
-function handleKeyboardEvents(event) {
-    const keyCode = event.keyCode;
-    // Prevent default actions (e.g., scrolling) for arrow keys.
-    if ([37, 38, 39, 40].includes(keyCode)) {
-        event.preventDefault();
-    }
-
-    switch (keyCode) {
-        case 39: // right arrow
-            if (currentDirection !== DIRECTION_LEFT) {
-                currentDirection = DIRECTION_RIGHT;
-            }
-            break;
-        case 40: // down arrow
-            if (currentDirection !== DIRECTION_UP) {
-                currentDirection = DIRECTION_DOWN;
-            }
-            break;
-        case 37: // left arrow
-            if (currentDirection !== DIRECTION_RIGHT) {
-                currentDirection = DIRECTION_LEFT;
-            }
-            break;
-        case 38: // up arrow
-            if (currentDirection !== DIRECTION_DOWN) {
-                currentDirection = DIRECTION_UP;
-            }
-            break;
-        default:
-            break;
-    }
-}
-
-/*
- * Initializes game state and starts the game loop.
- */
-function initializeGame() {
-    // Reset snake and spawn first apple.
-    resetSnake();
+  if (newHead.x === applePosition[0] && newHead.y === applePosition[1]) {
+    audio.apple.currentTime = 0;
+    audio.apple.play();
     spawnApple();
-
-    // Start the game loop.
-    setInterval(renderFrame, 1000 / FPS);
+    snakeBody.unshift({ ...snakeBody[0] });
+    snakeBody.unshift({ ...snakeBody[0] });
+    currentScore += SCORE_PER_APPLE;
+    scoreElement.textContent = `🍎 ${currentScore}`;
+  }
 }
 
-// Listen for keydown events to change direction.
-document.addEventListener("keydown", handleKeyboardEvents);
+// main render function
+function renderFrame() {
+  if (isPaused || isDead) return;
+  updateSnakePosition();
 
-// Start the game.
+  ctx.fillStyle = "#1a1a1a";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // draw apple
+  ctx.beginPath();
+  ctx.arc(
+    applePosition[0] + GRID_SIZE / 2,
+    applePosition[1] + GRID_SIZE / 2,
+    (GRID_SIZE / 2) * 0.8,
+    0,
+    Math.PI * 2
+  );
+  ctx.fillStyle = "#e74c3c";
+  ctx.fill();
+  ctx.strokeStyle = "#c0392b";
+  ctx.stroke();
+
+  // draw snake
+  snakeBody.forEach((segment) => {
+    const glow = ctx.createRadialGradient(
+      segment.x + GRID_SIZE / 2,
+      segment.y + GRID_SIZE / 2,
+      0,
+      segment.x + GRID_SIZE / 2,
+      segment.y + GRID_SIZE / 2,
+      GRID_SIZE
+    );
+    glow.addColorStop(0, "#2ecc71aa");
+    glow.addColorStop(1, "#27ae6000");
+
+    const bodyGradient = ctx.createLinearGradient(
+      segment.x,
+      segment.y,
+      segment.x + GRID_SIZE,
+      segment.y + GRID_SIZE
+    );
+    bodyGradient.addColorStop(0, "#2ecc71");
+    bodyGradient.addColorStop(1, "#27ae60");
+
+    ctx.fillStyle = glow;
+    ctx.fillRect(
+      segment.x - 10,
+      segment.y - 10,
+      GRID_SIZE + 20,
+      GRID_SIZE + 20
+    );
+    ctx.fillStyle = bodyGradient;
+    ctx.fillRect(segment.x, segment.y, GRID_SIZE, GRID_SIZE);
+  });
+}
+
+// ============================================
+// input handling and initialization
+// ============================================
+
+// process keyboard input
+function handleKeyboardEvents(event) {
+  const key = event.keyCode;
+
+  if ([37, 38, 39, 40].includes(key)) event.preventDefault();
+
+  if (key === 32 && !isDead) {
+    isPaused = !isPaused;
+    document.querySelector(".controls-info").textContent = isPaused
+      ? "⏸ paused"
+      : "←↑→↓ to move • space to pause";
+    return;
+  }
+
+  if (!isDead && !isPaused) {
+    switch (key) {
+      case 39:
+        if (currentDirection !== DIRECTION_LEFT)
+          currentDirection = DIRECTION_RIGHT;
+        break;
+      case 40:
+        if (currentDirection !== DIRECTION_UP)
+          currentDirection = DIRECTION_DOWN;
+        break;
+      case 37:
+        if (currentDirection !== DIRECTION_RIGHT)
+          currentDirection = DIRECTION_LEFT;
+        break;
+      case 38:
+        if (currentDirection !== DIRECTION_DOWN)
+          currentDirection = DIRECTION_UP;
+        break;
+    }
+  }
+}
+
+// initialize game systems
+function initializeGame() {
+  resetSnake();
+  spawnApple();
+  setInterval(renderFrame, 1000 / FPS);
+  document.addEventListener("keydown", handleKeyboardEvents);
+}
+
+// start game execution
 initializeGame();
