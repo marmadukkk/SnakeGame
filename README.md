@@ -18,3 +18,10 @@ simple implementation of the "Snake" game using JavaScript and the HTML5 canvas.
 - **User Controls:**  
   - Direction control is handled via keyboard arrow keys.  
   - Reverse movements are prevented (e.g., the snake cannot instantly switch from moving right to moving left).
+
+## Usage
+
+Open `index.html` in your browser and click the "Start Game" button to play.
+
+Enjoy!
+
